@@ -1,4 +1,4 @@
-#include <Arduino.h>
+//#include <Arduino.h>
 #include <ESP8266Wifi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -6,6 +6,7 @@
 // Définition des constantes de l'application
 #define STASSID "NomWIFI"
 #define STAPSK "MdpWIFI"
+#define DELAY 1000
 
 // Définition des variables plus parlantes pour le reste du programme
 const char *wifi_ssid = STASSID;
@@ -13,14 +14,14 @@ const char *wifi_password = STAPSK;
 
 // Pour le serveur
 const char *sadrr_serveur = "test.test.fr";
-WifiClient espClient;
+WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Configuration du Wifi
 void config_wifi()
 {
-  Wifi.mode(WIFI_STA);
-  Wifi.begin(wifi_ssid, wifi_password);
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(wifi_ssid, wifi_password);
 }
 
 // Configuration du capteur de vibration
@@ -32,7 +33,7 @@ void config_vibration_sensor()
 void connect()
 {
   String clientId = "ESP8266Client-";
-  ClientId += String(random(0xffff), HEX);
+  clientId += String(random(0xffff), HEX);
 
   while (!client.connected())
   {
@@ -66,9 +67,11 @@ void callback(char *topic, byte *payload, unsigned int length)
     // Augmentation du nombre de points selon le payload récupéré
     if (value == value_low)
     {
+      Serial.println("Low Value");
     }
     if (value == value_high)
     {
+      Serial.println("High Value");
     }
   }
 }
@@ -88,5 +91,16 @@ void setup()
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
+  delay(DELAY); // Délai de bouclage
+
+  if (!client.connected())
+  {
+    connect();
+  }
+
+  client.loop();
+
+  String nbPoint;
+  //serializeJson(..., nbPoint);
+  client.publish("adresse", const_cast<char *>(nbPoint.c_str()));
 }
