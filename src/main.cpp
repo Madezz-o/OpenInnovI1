@@ -1,32 +1,42 @@
-//#include <Arduino.h>
-#include <ESP8266Wifi.h>
+#include <Arduino.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
+#include <ESP8266WiFi.h>
+#include <DNSServer.h>
+#include <ESP8266WebServer.h>
+#include <WiFiManager.h>
 
 // Définition des constantes de l'application
-#define STASSID "NomWIFI"
-#define STAPSK "MdpWIFI"
+#define STASSID "Livebox-8990"
+#define STAPSK "DPmjLVakLHXz9rZQdf"
 #define DELAY 1000
+int val;
+int touch = 0;
+int oldNbTouch = 0;
 
 // Définition des variables plus parlantes pour le reste du programme
 const char *wifi_ssid = STASSID;
 const char *wifi_password = STAPSK;
 
 // Pour le serveur
-const char *sadrr_serveur = "test.test.fr";
+const char *sadrr_serveur = "31.34.157.18";
 WiFiClient espClient;
 PubSubClient client(espClient);
+
+DynamicJsonDocument jsonPoints(1024);
 
 // Configuration du Wifi
 void config_wifi()
 {
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifi_ssid, wifi_password);
-}
 
-// Configuration du capteur de vibration
-void config_vibration_sensor()
-{
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.println(F("WiFi connected!"));
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
 }
 
 // Connexion au serveur
@@ -39,7 +49,7 @@ void connect()
   {
     if (client.connect(clientId.c_str()))
     {
-      client.subscribe("");
+      client.subscribe("EPSI/OpenInnov/Cible1");
     }
     else
     {
@@ -49,49 +59,45 @@ void connect()
   }
 }
 
-// Fonction de callback à chaque reception de message dans un canal abonné
-void callback(char *topic, byte *payload, unsigned int length)
+// Configuration du capteur de vibration
+void config_vibration_sensor()
 {
-  // Traitement de la donnée arrivant sur le canal de communication
-  if (strcmp(topic, "adresse") == 0)
+  int val = digitalRead(D1);
+  //Serial.println(val); // Lecture de l'état du capteur sur l'entrée digitale 7
+  if (val == HIGH)
   {
-    String value = "";
-    for (int i = 0; i < length; i++)
-    {
-      value += (char)payload[i];
-    }
-
-    String value_low = "{ value: 0 }";
-    String value_high = "{ value: 1 }";
-
-    // Augmentation du nombre de points selon le payload récupéré
-    if (value == value_low)
-    {
-      Serial.println("Low Value");
-    }
-    if (value == value_high)
-    {
-      Serial.println("High Value");
-    }
+    touch++;
+    Serial.println("Nombre de touché : ");
+    Serial.println(touch);
+    delay(500);
+  }
+  else
+  {
   }
 }
 
 void setup()
 {
   // Configuration laison serie pour écrire dans la console
-  Serial.begin(115200);
+  Serial.begin(74880);
+  pinMode(D1, INPUT); // buttonpin en tant qu'entrée
 
-  config_vibration_sensor();
   config_wifi();
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.println(F("WiFi connected!"));
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
 
   // Configuration de la communication aevc le serveur
-  client.setServer(sadrr_serveur, 1883);
-  client.setCallback(callback);
+  client.setServer(sadrr_serveur, 1884);
 }
 
 void loop()
 {
   delay(DELAY); // Délai de bouclage
+  config_vibration_sensor();
 
   if (!client.connected())
   {
@@ -100,7 +106,12 @@ void loop()
 
   client.loop();
 
-  String nbPoint;
-  //serializeJson(..., nbPoint);
-  client.publish("adresse", const_cast<char *>(nbPoint.c_str()));
+  if (oldNbTouch != touch)
+  {
+    jsonPoints["touch"] = touch;
+    String nbPoint_json;
+    serializeJson(jsonPoints, nbPoint_json);
+    client.publish("EPSI/OpenInnov/Cible1", const_cast<char *>(nbPoint_json.c_str()));
+    oldNbTouch = touch;
+  }
 }
